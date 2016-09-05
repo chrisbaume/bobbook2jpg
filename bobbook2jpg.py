@@ -1,16 +1,25 @@
-import sys, os.path
+import sys, os.path, argparse
 from bs4 import BeautifulSoup
 from PIL import Image
 
-filename = sys.argv[1]
-imgFolder = sys.argv[2]
-outFolder = sys.argv[3]
 colorMap = {
     'Weiss,normal,': (255,255,255,255),
     'Schwarz,normal,': (0,0,0,255)
 }
 
-soup = BeautifulSoup(open(filename), 'xml')
+parser = argparse.ArgumentParser(description='Convert Bob Book to JPGs')
+parser.add_argument('inputFile', help='Input MCF file')
+parser.add_argument('inputFolder',
+    help='Input folder (typically Something_MCF-Datein)')
+parser.add_argument('outputFolder', help='Output folder')
+parser.add_argument('--size', default='2595x1024',
+    help='Resolution of double page image', metavar='WIDTHxHEIGHT')
+
+args=parser.parse_args()
+size=args.size.split('x')
+outResolution=(int(size[0]), int(size[1]))
+
+soup = BeautifulSoup(open(args.inputFile), 'xml')
 for page in soup.find_all('page'):
     if page['type'] not in ['normalpage','emptypage']: continue
 
@@ -30,7 +39,7 @@ for page in soup.find_all('page'):
         height = float(area['height'])
 
         print('  Adding '+area.image['filename'])
-        img = Image.open(imgFolder+'/'+area.image['filename'])
+        img = Image.open(args.inputFolder+'/'+area.image['filename'])
         scale = float(area.image['scale'])
         imgLeft = float(area.image['left'])*-1
         imgTop = float(area.image['top'])*-1
@@ -42,6 +51,11 @@ for page in soup.find_all('page'):
         pageImg.paste(img, (int(left), int(top), int(left)+int(width), int(top)+int(height)))
 
     if pageIsEmpty:
-        print('No images in page {}. Skipping...'.format(pageNumber))
+        print('  No images in page {}. Skipping...'.format(pageNumber))
     else:
-        pageImg.save(outFolder+'/'+str(pageNumber)+'.jpg')
+        pageLeft = pageImg.crop((0,0,pageWidth/2,pageHeight))
+        pageLeft.thumbnail(outResolution)
+        pageLeft.save(args.outputFolder+'/'+str(pageNumber+2)+'.jpg')
+        pageRight = pageImg.crop((pageWidth/2,0,pageWidth,pageHeight))
+        pageRight.thumbnail(outResolution)
+        pageRight.save(args.outputFolder+'/'+str(pageNumber+3)+'.jpg')
